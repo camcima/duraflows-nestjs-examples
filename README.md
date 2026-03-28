@@ -52,6 +52,14 @@ stateDiagram-v2
 
 The `paid` → `ready_to_ship` transition is automatic via `onEnter` and runs the `allocate-inventory` command. This demonstrates duraflows' auto-transition feature.
 
+### Path Documentation
+
+Each workflow path is documented with sequence diagrams and state diagrams:
+
+- [Happy Path](docs/happy-path.md) -- Full order lifecycle from creation to delivery
+- [Refund Failure Path](docs/refund-failure-path.md) -- Error state and retry with `errorState`
+- [Shipment Timeout Path](docs/shipment-timeout-path.md) -- Automatic timeout expiration
+
 ## Prerequisites
 
 - Node.js 20+
