@@ -75,15 +75,7 @@ git clone <repo-url>
 cd duraflows-nestjs-examples
 ```
 
-2. Make sure the duraflows library is built (this project links to it locally):
-
-```bash
-cd ../camcima/duraflows
-npm ci && npm run build
-cd -
-```
-
-3. Copy `.env.example` to `.env` and adjust if needed:
+2. Copy `.env.example` to `.env` and adjust if needed:
 
 ```bash
 cp .env.example .env
@@ -91,25 +83,25 @@ cp .env.example .env
 
 Default values assume a local PostgreSQL at `localhost:5432` with user/password `postgres/postgres`.
 
-4. Install dependencies:
+3. Install dependencies:
 
 ```bash
 npm install
 ```
 
-5. Build the project:
+4. Build the project:
 
 ```bash
 npm run build
 ```
 
-6. Create the database and tables:
+5. Create the database and tables:
 
 ```bash
 ./scripts/db/create-tables.sh
 ```
 
-7. Start the server:
+6. Start the server:
 
 ```bash
 npm start
