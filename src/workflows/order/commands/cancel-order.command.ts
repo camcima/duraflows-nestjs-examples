@@ -11,7 +11,7 @@ export class CancelOrderCommand implements WorkflowCommandInterface {
   private readonly logger = new Logger(CancelOrderCommand.name);
 
   execute(_subject: unknown, context: WorkflowExecutionContext): CommandResult {
-    this.logger.log(`Order cancelled (trigger: ${context.trigger.type})`);
+    this.logger.log("Order cancelled");
     context.context.cancelledAt = context.now.toISOString();
     return { ok: true, code: "ORDER_CANCELLED" };
   }

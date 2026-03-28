@@ -14,8 +14,7 @@ RESPONSE=$(curl -s -X POST "$BASE_URL/workflows" \
         { "sku": "WIDGET-001", "name": "Blue Widget", "qty": 1, "price": 29.99 }
       ],
       "totalAmount": 29.99
-    },
-    "trigger": { "type": "user" }
+    }
   }')
 echo "$RESPONSE" | jq .
 UUID=$(echo "$RESPONSE" | jq -r '.uuid')
@@ -25,13 +24,13 @@ echo
 echo "=== 2. Processing payment ==="
 curl -s -X POST "$BASE_URL/workflows/$UUID/events/process_payment" \
   -H "Content-Type: application/json" \
-  -d '{ "trigger": { "type": "user" } }' | jq .
+  -d '{ "triggerMetadata": { "actor": "bob@example.com", "source": "checkout-ui" } }' | jq .
 echo
 
 echo "=== 3. Payment success (auto-transitions to ready_to_ship) ==="
 curl -s -X POST "$BASE_URL/workflows/$UUID/events/payment_success" \
   -H "Content-Type: application/json" \
-  -d '{ "trigger": { "type": "system" } }' | jq .
+  -d '{}' | jq .
 echo
 
 echo "=== Current state (should be ready_to_ship) ==="
@@ -79,4 +78,4 @@ echo
 echo "=== Database: workflow_history rows ==="
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
   --pset=format=wrapped --pset=columns=120 \
-  -c "SELECT uuid, from_state, event_name, to_state, outcome, command_results_json, triggered_by_type, created_at FROM workflow_history WHERE workflow_instance_uuid = '$UUID' ORDER BY created_at;"
+  -c "SELECT uuid, from_state, event_name, to_state, outcome, command_results_json, trigger_metadata_json, created_at FROM workflow_history WHERE workflow_instance_uuid = '$UUID' ORDER BY created_at;"

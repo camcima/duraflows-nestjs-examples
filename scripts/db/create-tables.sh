@@ -50,8 +50,7 @@ CREATE TABLE IF NOT EXISTS workflow_history (
   outcome                 text NOT NULL CHECK (outcome IN ('success', 'failure')),
   error_message           text,
   command_results_json    jsonb NOT NULL DEFAULT '[]'::jsonb,
-  triggered_by_type       text,
-  triggered_by_uuid       uuid NULL,
+  trigger_metadata_json   jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at              timestamptz NOT NULL DEFAULT now()
 );
 

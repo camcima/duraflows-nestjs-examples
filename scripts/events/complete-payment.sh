@@ -5,4 +5,4 @@ UUID="${1:?Usage: complete-payment.sh <uuid>}"
 
 curl -s -X POST "$BASE_URL/workflows/$UUID/events/payment_success" \
   -H "Content-Type: application/json" \
-  -d '{ "trigger": { "type": "system" } }' | jq .
+  -d '{}' | jq .

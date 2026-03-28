@@ -14,6 +14,5 @@ curl -s -X POST "$BASE_URL/workflows" \
         { "sku": "GADGET-042", "name": "Red Gadget", "qty": 1, "price": 49.99 }
       ],
       "totalAmount": 109.97
-    },
-    "trigger": { "type": "user" }
+    }
   }' | jq .

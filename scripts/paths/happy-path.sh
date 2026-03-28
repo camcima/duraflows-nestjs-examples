@@ -15,8 +15,7 @@ RESPONSE=$(curl -s -X POST "$BASE_URL/workflows" \
         { "sku": "GADGET-042", "name": "Red Gadget", "qty": 1, "price": 49.99 }
       ],
       "totalAmount": 109.97
-    },
-    "trigger": { "type": "user" }
+    }
   }')
 echo "$RESPONSE" | jq .
 UUID=$(echo "$RESPONSE" | jq -r '.uuid')
@@ -26,25 +25,25 @@ echo
 echo "=== 2. Processing payment ==="
 curl -s -X POST "$BASE_URL/workflows/$UUID/events/process_payment" \
   -H "Content-Type: application/json" \
-  -d '{ "trigger": { "type": "user" } }' | jq .
+  -d '{ "triggerMetadata": { "actor": "john@example.com", "source": "checkout-ui" } }' | jq .
 echo
 
 echo "=== 3. Payment success ==="
 curl -s -X POST "$BASE_URL/workflows/$UUID/events/payment_success" \
   -H "Content-Type: application/json" \
-  -d '{ "trigger": { "type": "system" } }' | jq .
+  -d '{}' | jq .
 echo
 
 echo "=== 4. Shipping order ==="
 curl -s -X POST "$BASE_URL/workflows/$UUID/events/ship" \
   -H "Content-Type: application/json" \
-  -d '{ "trigger": { "type": "admin" } }' | jq .
+  -d '{ "triggerMetadata": { "actor": "admin@warehouse.com", "reason": "Batch shipment #42" } }' | jq .
 echo
 
 echo "=== 5. Delivering order ==="
 curl -s -X POST "$BASE_URL/workflows/$UUID/events/deliver" \
   -H "Content-Type: application/json" \
-  -d '{ "trigger": { "type": "system" } }' | jq .
+  -d '{}' | jq .
 echo
 
 echo "=== Final order state ==="
@@ -76,4 +75,4 @@ echo
 echo "=== Database: workflow_history rows ==="
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
   --pset=format=wrapped --pset=columns=120 \
-  -c "SELECT uuid, from_state, event_name, to_state, outcome, command_results_json, triggered_by_type, created_at FROM workflow_history WHERE workflow_instance_uuid = '$UUID' ORDER BY created_at;"
+  -c "SELECT uuid, from_state, event_name, to_state, outcome, command_results_json, trigger_metadata_json, created_at FROM workflow_history WHERE workflow_instance_uuid = '$UUID' ORDER BY created_at;"
