@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import type pg from "pg";
-import { WorkflowModule } from "@camcima/duraflows-nestjs";
-import { pgWorkflowProviders } from "@camcima/duraflows-pg";
+import { WorkflowModule } from "@duraflows/nestjs";
+import { pgWorkflowProviders } from "@duraflows/pg";
 import { PG_POOL } from "../../database/database.module.js";
 import { orderWorkflowDefinition } from "./order.definition.js";
 import { ValidateOrderCommand } from "./commands/validate-order.command.js";

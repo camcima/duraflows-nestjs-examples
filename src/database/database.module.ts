@@ -1,6 +1,6 @@
 import { Global, Logger, Module, type OnModuleDestroy } from "@nestjs/common";
 import pg from "pg";
-import { generateMigrationSql } from "@camcima/duraflows-pg";
+import { generateMigrationSql } from "@duraflows/pg";
 
 const { Pool } = pg;
 

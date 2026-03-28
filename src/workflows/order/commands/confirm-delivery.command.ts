@@ -1,10 +1,10 @@
 import { Logger } from "@nestjs/common";
-import { WorkflowCommand } from "@camcima/duraflows-nestjs";
+import { WorkflowCommand } from "@duraflows/nestjs";
 import type {
   WorkflowCommand as WorkflowCommandInterface,
   CommandResult,
   WorkflowExecutionContext,
-} from "@camcima/duraflows-core";
+} from "@duraflows/core";
 
 @WorkflowCommand("confirm-delivery")
 export class ConfirmDeliveryCommand implements WorkflowCommandInterface {

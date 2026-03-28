@@ -1,4 +1,4 @@
-import type { WorkflowDefinition } from "@camcima/duraflows-core";
+import type { WorkflowDefinition } from "@duraflows/core";
 
 export const orderWorkflowDefinition: WorkflowDefinition = {
   name: "ecommerce-order",

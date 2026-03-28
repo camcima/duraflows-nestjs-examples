@@ -1,11 +1,11 @@
 import { Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { WorkflowCommand } from "@camcima/duraflows-nestjs";
+import { WorkflowCommand } from "@duraflows/nestjs";
 import type {
   WorkflowCommand as WorkflowCommandInterface,
   CommandResult,
   WorkflowExecutionContext,
-} from "@camcima/duraflows-core";
+} from "@duraflows/core";
 
 @WorkflowCommand("create-shipment")
 export class CreateShipmentCommand implements WorkflowCommandInterface {
