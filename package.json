@@ -10,9 +10,9 @@
   },
   "dependencies": {
     "@camcima/finita": "^2.0.0",
-    "@duraflows/core": "^0.0.1",
-    "@duraflows/pg": "^0.0.1",
-    "@duraflows/nestjs": "^0.0.1",
+    "@duraflows/core": "^0.1.0",
+    "@duraflows/pg": "^0.1.0",
+    "@duraflows/nestjs": "^0.1.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",

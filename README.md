@@ -59,6 +59,7 @@ Each workflow path is documented with sequence diagrams and state diagrams:
 - [Happy Path](docs/happy-path.md) -- Full order lifecycle from creation to delivery
 - [Refund Failure Path](docs/refund-failure-path.md) -- Error state and retry with `errorState`
 - [Shipment Timeout Path](docs/shipment-timeout-path.md) -- Automatic timeout expiration
+- [WorkflowHandle](docs/workflow-handle.md) -- Programmatic usage with the thin-proxy handle pattern
 
 ## Prerequisites
 
