@@ -1,6 +1,16 @@
 # Duraflows NestJS Examples
 
-Example NestJS application demonstrating [duraflows](https://github.com/camcima/duraflows) with an ecommerce order workflow.
+Example NestJS application demonstrating [duraflows](https://github.com/camcima/duraflows) **v1.0.0** with an ecommerce order workflow.
+
+This example covers every major v1.0.0 feature:
+
+- **State-entry observers** (`WorkflowObserver` + `StateEnterEvent`) — see [docs/observers.md](docs/observers.md)
+- **Best-effort commands** (`bestEffort: true`) — see [docs/best-effort-notifications.md](docs/best-effort-notifications.md)
+- **Per-command metadata** (`WorkflowExecutionContext.commandMetadata`) — used by `send-notification` to pick `channel` + `template`
+- **Command-only events** (events with no `targetState`) — see [docs/command-only-events.md](docs/command-only-events.md)
+- **Context transition fields** (`fromState`, `toState`, `transitionUuid`) — used by both the audit observer and the notification command
+- **Structured observer-error logging** (`onObserverError`) — wired to NestJS `Logger` in `order.module.ts`
+- **Generic `forRootAsync<TArgs>`** — `OrderModule` declares `forRootAsync<[pg.Pool, OrderAuditObserver]>` so factory params are typechecked against `inject`
 
 ## Ecommerce Order Workflow
 
@@ -9,6 +19,7 @@ stateDiagram-v2
     [*] --> pending
     pending --> payment_processing : process_payment
     pending --> cancelled : cancel
+    pending --> pending : note_added (command-only)
 
     payment_processing --> paid : payment_success
     payment_processing --> payment_failed : payment_failure
@@ -50,7 +61,7 @@ stateDiagram-v2
 | `refund_failed` | Refund rejected, can retry (demonstrates `errorState`) |
 | `refunded` | Order refunded (terminal) |
 
-The `paid` → `ready_to_ship` transition is automatic via `onEnter` and runs the `allocate-inventory` command. This demonstrates duraflows' auto-transition feature.
+The `paid` → `ready_to_ship` transition is automatic via `onEnter` and runs `allocate-inventory` followed by a `bestEffort` `send-notification`. The `note_added` event in `pending` runs `add-note` without changing state — both patterns are new in v1.0.0.
 
 ### Path Documentation
 
@@ -59,6 +70,9 @@ Each workflow path is documented with sequence diagrams and state diagrams:
 - [Happy Path](docs/happy-path.md) -- Full order lifecycle from creation to delivery
 - [Refund Failure Path](docs/refund-failure-path.md) -- Error state and retry with `errorState`
 - [Shipment Timeout Path](docs/shipment-timeout-path.md) -- Automatic timeout expiration
+- [Best-Effort Commands](docs/best-effort-notifications.md) -- v1.0.0 `bestEffort: true` for fire-and-forget side effects
+- [Command-Only Events](docs/command-only-events.md) -- v1.0.0 events with no `targetState`
+- [Observers](docs/observers.md) -- v1.0.0 `WorkflowObserver` post-commit lifecycle hooks
 - [WorkflowHandle](docs/workflow-handle.md) -- Programmatic usage with the thin-proxy handle pattern
 
 ## Prerequisites
@@ -129,11 +143,13 @@ scripts/
 │   ├── cancel-order.sh
 │   ├── request-refund.sh
 │   ├── request-refund-fail.sh
-│   └── retry-refund.sh
+│   ├── retry-refund.sh
+│   └── add-note.sh              # Command-only event (v1.0.0)
 ├── paths/                       # End-to-end workflow paths
 │   ├── happy-path.sh
 │   ├── refund-failure-path.sh
-│   └── shipment-timeout-path.sh
+│   ├── shipment-timeout-path.sh
+│   └── best-effort-notification-path.sh   # bestEffort failure (v1.0.0)
 └── queries/                     # Read-only queries
     ├── get-order.sh
     ├── get-events.sh
@@ -158,6 +174,11 @@ scripts/
 ./scripts/paths/shipment-timeout-path.sh
 ```
 
+**Best-effort notification path (v1.0.0)** — proves the workflow still reaches `delivered` even when the bestEffort `send-notification` command throws:
+```bash
+./scripts/paths/best-effort-notification-path.sh
+```
+
 ### Create Order
 
 ```bash
@@ -180,6 +201,7 @@ All event scripts take an order UUID as an argument:
 | `request-refund.sh <uuid>` | delivered -> refunded |
 | `request-refund-fail.sh <uuid>` | delivered -> refund_failed |
 | `retry-refund.sh <uuid>` | refund_failed -> refunded |
+| `add-note.sh <uuid> [note]` | pending -> pending (command-only event, v1.0.0) |
 
 ### Query Scripts (`scripts/queries/`)
 

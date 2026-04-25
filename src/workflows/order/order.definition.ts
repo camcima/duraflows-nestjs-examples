@@ -14,6 +14,12 @@ export const orderWorkflowDefinition: WorkflowDefinition = {
           targetState: "cancelled",
           commands: [{ name: "cancel-order" }],
         },
+        // v1.0.0: command-only event — no `targetState`, runs commands and stays
+        // in `pending`. A history record is appended; no `StateEnterEvent`
+        // fires because no state was actually entered.
+        note_added: {
+          commands: [{ name: "add-note" }],
+        },
       },
     },
 
@@ -38,7 +44,17 @@ export const orderWorkflowDefinition: WorkflowDefinition = {
     paid: {
       onEnter: {
         targetState: "ready_to_ship",
-        commands: [{ name: "allocate-inventory" }],
+        commands: [
+          { name: "allocate-inventory" },
+          // v1.0.0: bestEffort + per-command metadata. Failure here is
+          // recorded in history but does NOT abort the onEnter chain or taint
+          // `outcome`. `commandMetadata` is exposed to the handler via
+          // `WorkflowExecutionContext.commandMetadata`.
+          {
+            name: "send-notification",
+            metadata: { channel: "email", template: "payment-confirmed" },
+          },
+        ],
       },
     },
 
@@ -62,7 +78,11 @@ export const orderWorkflowDefinition: WorkflowDefinition = {
       events: {
         deliver: {
           targetState: "delivered",
-          commands: [{ name: "confirm-delivery" }],
+          commands: [
+            { name: "confirm-delivery" },
+            // Same handler, different metadata — second bestEffort send
+            { name: "send-notification", metadata: { channel: "sms", template: "delivered" } },
+          ],
         },
       },
     },

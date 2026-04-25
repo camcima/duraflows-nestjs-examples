@@ -31,6 +31,8 @@ sequenceDiagram
     Note over Workflow: onEnter auto-transition
     Workflow->>Commands: allocate-inventory
     Commands-->>Workflow: OK (INVENTORY_ALLOCATED)
+    Workflow->>Commands: send-notification (bestEffort, email/payment-confirmed)
+    Commands-->>Workflow: OK (NOTIFICATION_SENT)
     Workflow->>Workflow: paid → ready_to_ship
     API-->>Customer: { currentState: "ready_to_ship" }
 
@@ -45,6 +47,8 @@ sequenceDiagram
     API->>Workflow: Trigger deliver
     Workflow->>Commands: confirm-delivery
     Commands-->>Workflow: OK (DELIVERY_CONFIRMED)
+    Workflow->>Commands: send-notification (bestEffort, sms/delivered)
+    Commands-->>Workflow: OK (NOTIFICATION_SENT)
     Workflow->>Workflow: shipped → delivered
     API-->>Customer: { currentState: "delivered" }
 ```
@@ -75,14 +79,16 @@ stateDiagram-v2
 |---|-------|---------|------------|----------|
 | 1 | `process_payment` | `validate-order` | pending | payment_processing |
 | 2 | `payment_success` | `confirm-payment` | payment_processing | paid |
-| 3 | _(auto)_ | `allocate-inventory` | paid | ready_to_ship |
+| 3 | _(auto)_ | `allocate-inventory` + `send-notification` (bestEffort) | paid | ready_to_ship |
 | 4 | `ship` | `create-shipment` | ready_to_ship | shipped |
-| 5 | `deliver` | `confirm-delivery` | shipped | delivered |
+| 5 | `deliver` | `confirm-delivery` + `send-notification` (bestEffort) | shipped | delivered |
 
 ## Key Concepts Demonstrated
 
-- **Auto-transition (`onEnter`)** -- When the workflow enters the `paid` state, it automatically runs `allocate-inventory` and transitions to `ready_to_ship` without requiring an external event. This is useful for steps that should always execute immediately upon entering a state.
+- **Auto-transition (`onEnter`)** -- When the workflow enters the `paid` state, it automatically runs `allocate-inventory`, fires a best-effort `send-notification`, and transitions to `ready_to_ship` without requiring an external event.
 - **Context enrichment** -- Each command adds data to the workflow context (`validatedAt`, `paidAt`, `inventoryAllocatedAt`, `shippedAt`, `trackingNumber`, `deliveredAt`), building up an audit trail as the order progresses.
+- **Best-effort notifications (v1.0.0)** -- `send-notification` runs as `bestEffort: true` on both auto-transition and delivery. Failures are recorded but do not abort the workflow. See [Best-Effort Commands](./best-effort-notifications.md).
+- **State-entry observers (v1.0.0)** -- Every state entry on this path fires `OrderAuditObserver` post-commit. Watch the server log for the audit trail. See [Observers](./observers.md).
 
 ## Running It
 
