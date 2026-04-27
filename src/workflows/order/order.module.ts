@@ -17,27 +17,35 @@ import { SendNotificationCommand } from "./commands/send-notification.command.js
 import { AddNoteCommand } from "./commands/add-note.command.js";
 import { OrderAuditObserver } from "./observers/order-audit.observer.js";
 import { OrderObserversModule } from "./observers/order-observers.module.js";
+import { RefundWindowGuard } from "./guards/refund-window.guard.js";
 
 const observerErrorLogger = new Logger("WorkflowObserver");
 
 @Module({
   imports: [
-    // v1.0.0: forRootAsync is now generic over factory args (`<TArgs>`).
-    // Declaring `<[pg.Pool, OrderAuditObserver]>` typechecks the inject tokens
-    // against the factory parameters at compile time.
-    WorkflowModule.forRootAsync<[pg.Pool, OrderAuditObserver]>({
+    // v1.0.0: forRootAsync is generic over factory args (`<TArgs>`).
+    // v1.1.0: third arg is the guard instance — typed alongside Pool + observer
+    // so the inject tokens are checked against the factory params at compile time.
+    WorkflowModule.forRootAsync<[pg.Pool, OrderAuditObserver, RefundWindowGuard]>({
       // Observer lives in OrderObserversModule so it's visible to this
       // dynamic-module factory (provider scopes don't cross dynamic-module
       // boundaries unless re-exported).
       imports: [OrderObserversModule],
       enableControllers: true,
-      useFactory: (pool, auditObserver) => ({
+      useFactory: (pool, auditObserver, refundWindowGuard) => ({
         workflows: [orderWorkflowDefinition],
         persistence: pgWorkflowProviders(pool),
         // v1.0.0: observers moved into the factory return value (was previously
         // a top-level option). This lets observers compose from DI-resolved
         // services like loggers, audit clients, metrics, etc.
         observers: [auditObserver],
+        // v1.1.0: per-event guards wired through DI. Each guard is a
+        // @Injectable class that implements `WorkflowGuard`. The runtime
+        // resolves guard refs in the workflow definition (e.g.
+        // `guard: { name: "refund-window" }` on `request_refund`) against
+        // this array at module bootstrap; an unknown ref fails registration
+        // with `WorkflowDefinitionError`.
+        guards: [refundWindowGuard],
         // v1.0.0: replace the default `console.warn` fallback with a structured
         // logger so observer failures are visible in normal app log streams.
         onObserverError: (error, observer, event) => {
@@ -46,7 +54,7 @@ const observerErrorLogger = new Logger("WorkflowObserver");
           );
         },
       }),
-      inject: [PG_POOL, OrderAuditObserver],
+      inject: [PG_POOL, OrderAuditObserver, RefundWindowGuard],
     }),
   ],
   providers: [
@@ -61,6 +69,9 @@ const observerErrorLogger = new Logger("WorkflowObserver");
     ExpireShipmentCommand,
     SendNotificationCommand,
     AddNoteCommand,
+    // v1.1.0: the guard is a regular NestJS provider so it can hold injected
+    // dependencies (loggers, config, services) just like commands.
+    RefundWindowGuard,
   ],
 })
 export class OrderModule {}

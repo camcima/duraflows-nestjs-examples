@@ -90,6 +90,12 @@ export const orderWorkflowDefinition: WorkflowDefinition = {
     delivered: {
       events: {
         request_refund: {
+          // v1.1.0: per-event guard. Runs BEFORE any commands; if it returns
+          // `false`, the event short-circuits with `outcome: "guard-rejected"`,
+          // no commands run, no state change, and a history row with
+          // `rejectedBy: "refund-window"` is appended. `errorState` is for
+          // command failures only — it does NOT catch guard rejections.
+          guard: { name: "refund-window", metadata: { maxDays: 30 } },
           targetState: "refunded",
           errorState: "refund_failed",
           commands: [{ name: "process-refund" }],

@@ -1,16 +1,17 @@
 # Duraflows NestJS Examples
 
-Example NestJS application demonstrating [duraflows](https://github.com/camcima/duraflows) **v1.0.0** with an ecommerce order workflow.
+Example NestJS application demonstrating [duraflows](https://github.com/camcima/duraflows) **v1.1.0** with an ecommerce order workflow.
 
-This example covers every major v1.0.0 feature:
+This example covers every major v1.0.0 and v1.1.0 feature:
 
+- **Event guards** — `WorkflowGuard` + `outcome: "guard-rejected"` — see [docs/guards.md](docs/guards.md) (v1.1.0)
 - **State-entry observers** (`WorkflowObserver` + `StateEnterEvent`) — see [docs/observers.md](docs/observers.md)
 - **Best-effort commands** (`bestEffort: true`) — see [docs/best-effort-notifications.md](docs/best-effort-notifications.md)
 - **Per-command metadata** (`WorkflowExecutionContext.commandMetadata`) — used by `send-notification` to pick `channel` + `template`
 - **Command-only events** (events with no `targetState`) — see [docs/command-only-events.md](docs/command-only-events.md)
 - **Context transition fields** (`fromState`, `toState`, `transitionUuid`) — used by both the audit observer and the notification command
 - **Structured observer-error logging** (`onObserverError`) — wired to NestJS `Logger` in `order.module.ts`
-- **Generic `forRootAsync<TArgs>`** — `OrderModule` declares `forRootAsync<[pg.Pool, OrderAuditObserver]>` so factory params are typechecked against `inject`
+- **Generic `forRootAsync<TArgs>`** — `OrderModule` declares `forRootAsync<[pg.Pool, OrderAuditObserver, RefundWindowGuard]>` so factory params are typechecked against `inject`
 
 ## Ecommerce Order Workflow
 
@@ -32,8 +33,9 @@ stateDiagram-v2
 
     shipped --> delivered : deliver
 
-    delivered --> refunded : request_refund
-    delivered --> refund_failed : request_refund (error)
+    delivered --> refunded : request_refund (guard pass)
+    delivered --> delivered : request_refund (guard reject) ⛔
+    delivered --> refund_failed : request_refund (command error)
 
     payment_failed --> payment_processing : retry_payment
     payment_failed --> cancelled : cancel
@@ -73,6 +75,7 @@ Each workflow path is documented with sequence diagrams and state diagrams:
 - [Best-Effort Commands](docs/best-effort-notifications.md) -- v1.0.0 `bestEffort: true` for fire-and-forget side effects
 - [Command-Only Events](docs/command-only-events.md) -- v1.0.0 events with no `targetState`
 - [Observers](docs/observers.md) -- v1.0.0 `WorkflowObserver` post-commit lifecycle hooks
+- [Event Guards](docs/guards.md) -- v1.1.0 per-event preconditions with `outcome: "guard-rejected"`
 - [WorkflowHandle](docs/workflow-handle.md) -- Programmatic usage with the thin-proxy handle pattern
 
 ## Prerequisites
@@ -149,7 +152,9 @@ scripts/
 │   ├── happy-path.sh
 │   ├── refund-failure-path.sh
 │   ├── shipment-timeout-path.sh
-│   └── best-effort-notification-path.sh   # bestEffort failure (v1.0.0)
+│   ├── best-effort-notification-path.sh   # bestEffort failure (v1.0.0)
+│   ├── refund-window-pass-path.sh         # guard PASSES (v1.1.0)
+│   └── refund-window-rejected-path.sh     # guard REJECTS (v1.1.0)
 └── queries/                     # Read-only queries
     ├── get-order.sh
     ├── get-events.sh
@@ -177,6 +182,16 @@ scripts/
 **Best-effort notification path (v1.0.0)** — proves the workflow still reaches `delivered` even when the bestEffort `send-notification` command throws:
 ```bash
 ./scripts/paths/best-effort-notification-path.sh
+```
+
+**Refund window guard — PASS (v1.1.0)** — the `request_refund` event's guard returns `true` for an order delivered moments ago, the refund proceeds, the order reaches `refunded`:
+```bash
+./scripts/paths/refund-window-pass-path.sh
+```
+
+**Refund window guard — REJECT (v1.1.0)** — the same event's guard returns `false` for an order whose `deliveredAt` is backdated 60 days; the response carries `outcome: "guard-rejected"` and `rejectedBy: "refund-window"`, no commands run, no state change, and a guard-rejected history row is appended:
+```bash
+./scripts/paths/refund-window-rejected-path.sh
 ```
 
 ### Create Order
