@@ -14,6 +14,6 @@ DB_NAME="${DATABASE_NAME:-duraflows_examples}"
 export PGPASSWORD="${DATABASE_PASSWORD:-postgres}"
 
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
-  -c "TRUNCATE workflow_history, workflow_instances CASCADE;"
+  -c "TRUNCATE workflow_history, workflow_instances, workflow_definitions CASCADE;"
 
 echo "Tables truncated successfully"

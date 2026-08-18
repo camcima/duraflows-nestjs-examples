@@ -1,9 +1,11 @@
 # Duraflows NestJS Examples
 
-Example NestJS application demonstrating [duraflows](https://github.com/camcima/duraflows) **v1.1.0** with an ecommerce order workflow.
+Example NestJS application demonstrating [duraflows](https://github.com/camcima/duraflows) **v5.0.0** with an ecommerce order workflow.
 
-This example covers every major v1.0.0 and v1.1.0 feature:
+This example covers every major v1.0.0, v1.1.0, and v5.0.0 feature:
 
+- **Definition versions** (`WorkflowDefinition.version`, immutable `workflow_definitions` snapshots, `definitionVersion` stamps on instances/history, and the startup guard that fails the app if content drifts under an unbumped version) — see [docs/definition-versions.md](docs/definition-versions.md) (v5.0.0)
+- **Two workflow versions side by side** — a second definition (`ecommerce-order-v2`, a fraud-review fork of `ecommerce-order`) registered under a different name and run concurrently, since 5.0.0 has no same-name version pinning yet — see [docs/side-by-side-versions.md](docs/side-by-side-versions.md) (v5.0.0)
 - **Event guards** — `WorkflowGuard` + `outcome: "guard-rejected"` — see [docs/guards.md](docs/guards.md) (v1.1.0)
 - **State-entry observers** (`WorkflowObserver` + `StateEnterEvent`) — see [docs/observers.md](docs/observers.md)
 - **Best-effort commands** (`bestEffort: true`) — see [docs/best-effort-notifications.md](docs/best-effort-notifications.md)
@@ -77,6 +79,8 @@ Each workflow path is documented with sequence diagrams and state diagrams:
 - [Observers](docs/observers.md) -- v1.0.0 `WorkflowObserver` post-commit lifecycle hooks
 - [Event Guards](docs/guards.md) -- v1.1.0 per-event preconditions with `outcome: "guard-rejected"`
 - [WorkflowHandle](docs/workflow-handle.md) -- Programmatic usage with the thin-proxy handle pattern
+- [Definition Versions](docs/definition-versions.md) -- v5.0.0 explicit `version`, snapshot table, startup guard, and why resolution is unchanged (no pinning yet)
+- [Side-by-Side Versions](docs/side-by-side-versions.md) -- v5.0.0 running two workflow names concurrently as a workaround for not-yet-built version pinning, its costs, and when to use a `version` bump instead
 
 ## Prerequisites
 
@@ -133,13 +137,15 @@ Scripts are organized in the `scripts/` directory and use `curl` + `jq` against 
 
 ```
 scripts/
-├── create-order.sh              # Create a new order
+├── create-order.sh              # Create a new order (ecommerce-order)
+├── create-order-v2.sh           # Create a new order-v2 order (ecommerce-order-v2, v5.0.0 side-by-side)
 ├── db/                          # Database utilities
 │   ├── create-tables.sh
 │   └── truncate-tables.sh
 ├── events/                      # Trigger individual workflow events
 │   ├── process-payment.sh
 │   ├── complete-payment.sh
+│   ├── complete-payment-fraud-flag.sh   # ecommerce-order-v2 only: forces the fraud_hold branch (v5.0.0)
 │   ├── fail-payment.sh
 │   ├── ship-order.sh
 │   ├── deliver-order.sh
@@ -147,7 +153,9 @@ scripts/
 │   ├── request-refund.sh
 │   ├── request-refund-fail.sh
 │   ├── retry-refund.sh
-│   └── add-note.sh              # Command-only event (v1.0.0)
+│   ├── add-note.sh              # Command-only event (v1.0.0)
+│   ├── approve-hold.sh          # ecommerce-order-v2 only: clears a fraud_hold (v5.0.0)
+│   └── reject-hold.sh           # ecommerce-order-v2 only: cancels from fraud_hold (v5.0.0)
 ├── paths/                       # End-to-end workflow paths
 │   ├── happy-path.sh
 │   ├── refund-failure-path.sh
@@ -159,7 +167,10 @@ scripts/
     ├── get-order.sh
     ├── get-events.sh
     ├── get-history.sh
-    └── process-timeouts.sh
+    ├── process-timeouts.sh
+    ├── list-definition-snapshots.sh     # workflow_definitions rows (v5.0.0)
+    ├── get-definition-versions.sh       # instance + history definitionVersion stamps (v5.0.0)
+    └── list-instances-by-workflow.sh    # instances across both workflow names side by side (v5.0.0)
 ```
 
 ### End-to-End Paths (`scripts/paths/`)
@@ -201,14 +212,22 @@ scripts/
 # Returns the order UUID
 ```
 
+**Side-by-side (v5.0.0)** — create an order on the second, independently-registered `ecommerce-order-v2` definition instead:
+
+```bash
+./scripts/create-order-v2.sh
+# Returns the order UUID
+```
+
 ### Event Scripts (`scripts/events/`)
 
-All event scripts take an order UUID as an argument:
+All event scripts take an order UUID as an argument. Event names are shared between `ecommerce-order` and `ecommerce-order-v2` wherever the flow is identical, so these work against instances of either workflow name unless noted otherwise:
 
 | Script | Transition |
 |--------|------------|
 | `process-payment.sh <uuid>` | pending -> payment_processing |
-| `complete-payment.sh <uuid>` | payment_processing -> paid -> ready_to_ship |
+| `complete-payment.sh <uuid>` | payment_processing -> paid -> ready_to_ship (`ecommerce-order`) or -> fraud_review -> ready_to_ship (`ecommerce-order-v2`, clean screen) |
+| `complete-payment-fraud-flag.sh <uuid>` | `ecommerce-order-v2` only: payment_processing -> paid -> fraud_review -> fraud_hold (v5.0.0) |
 | `fail-payment.sh <uuid>` | payment_processing -> payment_failed |
 | `ship-order.sh <uuid>` | ready_to_ship -> shipped |
 | `deliver-order.sh <uuid>` | shipped -> delivered |
@@ -217,6 +236,8 @@ All event scripts take an order UUID as an argument:
 | `request-refund-fail.sh <uuid>` | delivered -> refund_failed |
 | `retry-refund.sh <uuid>` | refund_failed -> refunded |
 | `add-note.sh <uuid> [note]` | pending -> pending (command-only event, v1.0.0) |
+| `approve-hold.sh <uuid>` | `ecommerce-order-v2` only: fraud_hold -> ready_to_ship (v5.0.0) |
+| `reject-hold.sh <uuid>` | `ecommerce-order-v2` only: fraud_hold -> cancelled (v5.0.0) |
 
 ### Query Scripts (`scripts/queries/`)
 
@@ -226,6 +247,9 @@ All event scripts take an order UUID as an argument:
 | `get-events.sh <uuid>` | List available events |
 | `get-history.sh <uuid>` | Get transition history |
 | `process-timeouts.sh` | Process expired timeouts (payment_processing 30-min, ready_to_ship 1-min) |
+| `list-definition-snapshots.sh` | List every `workflow_definitions` snapshot row (v5.0.0, direct `psql` -- no REST equivalent) |
+| `get-definition-versions.sh <uuid>` | Show an instance's `definitionVersion` alongside its history rows' versions (v5.0.0) |
+| `list-instances-by-workflow.sh [workflow-name]` | List instances across both workflow names side by side, each with its own `definitionVersion` (v5.0.0, direct `psql`) |
 
 ### Database Scripts (`scripts/db/`)
 

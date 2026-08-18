@@ -9,10 +9,10 @@
     "start:dev": "tsc && node dist/main.js"
   },
   "dependencies": {
-    "@camcima/finita": "^2.0.0",
-    "@duraflows/core": "^1.1.0",
-    "@duraflows/nestjs": "^1.1.0",
-    "@duraflows/pg": "^1.1.0",
+    "@camcima/finita": "^4.1.0",
+    "@duraflows/core": "^5.0.0",
+    "@duraflows/nestjs": "^5.0.0",
+    "@duraflows/pg": "^5.0.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
