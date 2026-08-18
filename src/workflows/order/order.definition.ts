@@ -2,6 +2,13 @@ import type { WorkflowDefinition } from "@duraflows/core";
 
 export const orderWorkflowDefinition: WorkflowDefinition = {
   name: "ecommerce-order",
+  // v5.0.0: explicit definition version (defaults to 1 if omitted -- spelled
+  // out here so the feature is visible in the code a reader looks at first).
+  // Bump this whenever the states/events/commands below change content;
+  // `WorkflowRuntime.initialize()` (run at NestJS module init) throws
+  // `WorkflowDefinitionError` and refuses to start if the content hash drifts
+  // under an unbumped version. See docs/definition-versions.md.
+  version: 1,
   initialState: "pending",
   states: {
     pending: {
