@@ -1,9 +1,10 @@
 # Duraflows NestJS Examples
 
-Example NestJS application demonstrating [duraflows](https://github.com/camcima/duraflows) **v1.1.0** with an ecommerce order workflow.
+Example NestJS application demonstrating [duraflows](https://github.com/camcima/duraflows) **v5.0.0** with an ecommerce order workflow.
 
-This example covers every major v1.0.0 and v1.1.0 feature:
+This example covers every major v1.0.0, v1.1.0, and v5.0.0 feature:
 
+- **Definition versions** (`WorkflowDefinition.version`, immutable `workflow_definitions` snapshots, `definitionVersion` stamps on instances/history, and the startup guard that fails the app if content drifts under an unbumped version) — see [docs/definition-versions.md](docs/definition-versions.md) (v5.0.0)
 - **Event guards** — `WorkflowGuard` + `outcome: "guard-rejected"` — see [docs/guards.md](docs/guards.md) (v1.1.0)
 - **State-entry observers** (`WorkflowObserver` + `StateEnterEvent`) — see [docs/observers.md](docs/observers.md)
 - **Best-effort commands** (`bestEffort: true`) — see [docs/best-effort-notifications.md](docs/best-effort-notifications.md)
@@ -77,6 +78,7 @@ Each workflow path is documented with sequence diagrams and state diagrams:
 - [Observers](docs/observers.md) -- v1.0.0 `WorkflowObserver` post-commit lifecycle hooks
 - [Event Guards](docs/guards.md) -- v1.1.0 per-event preconditions with `outcome: "guard-rejected"`
 - [WorkflowHandle](docs/workflow-handle.md) -- Programmatic usage with the thin-proxy handle pattern
+- [Definition Versions](docs/definition-versions.md) -- v5.0.0 explicit `version`, snapshot table, startup guard, and why resolution is unchanged (no pinning yet)
 
 ## Prerequisites
 
@@ -159,7 +161,9 @@ scripts/
     ├── get-order.sh
     ├── get-events.sh
     ├── get-history.sh
-    └── process-timeouts.sh
+    ├── process-timeouts.sh
+    ├── list-definition-snapshots.sh   # workflow_definitions rows (v5.0.0)
+    └── get-definition-versions.sh     # instance + history definitionVersion stamps (v5.0.0)
 ```
 
 ### End-to-End Paths (`scripts/paths/`)
@@ -226,6 +230,8 @@ All event scripts take an order UUID as an argument:
 | `get-events.sh <uuid>` | List available events |
 | `get-history.sh <uuid>` | Get transition history |
 | `process-timeouts.sh` | Process expired timeouts (payment_processing 30-min, ready_to_ship 1-min) |
+| `list-definition-snapshots.sh` | List every `workflow_definitions` snapshot row (v5.0.0, direct `psql` -- no REST equivalent) |
+| `get-definition-versions.sh <uuid>` | Show an instance's `definitionVersion` alongside its history rows' versions (v5.0.0) |
 
 ### Database Scripts (`scripts/db/`)
 
