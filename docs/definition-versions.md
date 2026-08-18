@@ -8,6 +8,8 @@ duraflows v5.0.0 adds an explicit `version` field to `WorkflowDefinition`, a `wo
 
 Concretely: if you deploy a new build with different workflow content, **every** existing instance of that workflow starts executing the new content on its very next transition — the same way it always has, version field or not. The `definitionVersion` stamp only tells you, after the fact, which content an instance *did* run under at each point in its history. It does not protect an in-flight instance from a content change. See [Live Walkthrough 2](#2-resolution-is-unchanged-a-live-demonstration) below for a real, reproduced example of this.
 
+If that's a problem for the change you're making — not just "I want to publish a new version," but "I need in-flight instances to keep their current behavior while new instances get the new behavior" — versioning alone doesn't solve it. See [docs/side-by-side-versions.md](side-by-side-versions.md) for the workaround this example app demonstrates (forking to a new workflow name) and why it's a workaround rather than a feature.
+
 ## The `version` Field
 
 ```ts
@@ -232,3 +234,7 @@ Both reuse the connection/env handling from `scripts/db/create-tables.sh` (for t
 - **Don't bump it** for changes that don't touch the definition object at all — command *implementation* changes (the TypeScript inside a `WorkflowCommand.execute`), guard implementation changes, observer changes. The content hash only covers the `WorkflowDefinition` JSON (states/events/commands-by-name/timeouts/guards-by-name/metadata), not the code those names resolve to.
 - **A first-time build doesn't need to worry about this** — it matters from the second deploy of a given workflow name onward.
 - Remember: bumping `version` publishes a new snapshot and unblocks startup. It does **not** pin any instance to the version it was created under — see [Read This First](#read-this-first-versioning-does-not-pin-execution).
+
+## Need To Change In-Flight Behavior, Not Just Publish a New Version?
+
+A `version` bump is right for backward-compatible changes — see above. But because resolution is unchanged (no pinning), a version bump is **not** enough if the change would alter what an already-in-flight instance does next in a way you don't want applied retroactively. For that case, this example app also demonstrates the only real workaround available in 5.0.0: forking the workflow under a **new name**, registering both definitions side by side, and routing new work to the new name while the old name drains naturally. See [docs/side-by-side-versions.md](side-by-side-versions.md) for the full pattern, a live walkthrough, and — importantly — its costs, including the one thing it cannot do: move an in-flight instance from the old name to the new one.
