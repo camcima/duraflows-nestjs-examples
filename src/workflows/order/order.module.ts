@@ -18,6 +18,7 @@ import { AddNoteCommand } from "./commands/add-note.command.js";
 import { OrderAuditObserver } from "./observers/order-audit.observer.js";
 import { OrderObserversModule } from "./observers/order-observers.module.js";
 import { RefundWindowGuard } from "./guards/refund-window.guard.js";
+import { OrderGuardsModule } from "./guards/order-guards.module.js";
 
 const observerErrorLogger = new Logger("WorkflowObserver");
 
@@ -27,10 +28,11 @@ const observerErrorLogger = new Logger("WorkflowObserver");
     // v1.1.0: third arg is the guard instance — typed alongside Pool + observer
     // so the inject tokens are checked against the factory params at compile time.
     WorkflowModule.forRootAsync<[pg.Pool, OrderAuditObserver, RefundWindowGuard]>({
-      // Observer lives in OrderObserversModule so it's visible to this
-      // dynamic-module factory (provider scopes don't cross dynamic-module
-      // boundaries unless re-exported).
-      imports: [OrderObserversModule],
+      // Observer and guard live in their own exporting modules so they're
+      // visible to this dynamic-module factory (provider scopes don't cross
+      // dynamic-module boundaries unless re-exported — see OrderGuardsModule
+      // for why RefundWindowGuard can't just live in OrderModule.providers).
+      imports: [OrderObserversModule, OrderGuardsModule],
       enableControllers: true,
       useFactory: (pool, auditObserver, refundWindowGuard) => ({
         workflows: [orderWorkflowDefinition],
@@ -69,9 +71,6 @@ const observerErrorLogger = new Logger("WorkflowObserver");
     ExpireShipmentCommand,
     SendNotificationCommand,
     AddNoteCommand,
-    // v1.1.0: the guard is a regular NestJS provider so it can hold injected
-    // dependencies (loggers, config, services) just like commands.
-    RefundWindowGuard,
   ],
 })
 export class OrderModule {}
