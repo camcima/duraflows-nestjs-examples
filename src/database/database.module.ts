@@ -45,6 +45,21 @@ export const PG_POOL = Symbol("PG_POOL");
           .replace(/CREATE TABLE /g, "CREATE TABLE IF NOT EXISTS ")
           .replace(/CREATE INDEX /g, "CREATE INDEX IF NOT EXISTS ");
         await pool.query(idempotentSql);
+
+        // `CREATE TABLE IF NOT EXISTS` above is a no-op against tables that
+        // already existed from a pre-5.0.0 install (e.g. this example's own
+        // database, upgraded from the 1.1.0 schema) — it never adds columns
+        // to a table that's already there. Bring such tables current with
+        // the same ALTERs dbmate migrations 003/004 apply, run idempotently
+        // on every boot so both fresh and upgraded databases converge.
+        await pool.query(`
+          ALTER TABLE workflow_history DROP CONSTRAINT IF EXISTS workflow_history_outcome_check;
+          ALTER TABLE workflow_history ADD CONSTRAINT workflow_history_outcome_check
+            CHECK (outcome IN ('success', 'failure', 'guard-rejected'));
+          ALTER TABLE workflow_history ADD COLUMN IF NOT EXISTS rejected_by text;
+          ALTER TABLE workflow_instances ADD COLUMN IF NOT EXISTS definition_version integer NULL;
+          ALTER TABLE workflow_history ADD COLUMN IF NOT EXISTS definition_version integer NULL;
+        `);
         logger.log("Database migrations applied");
 
         return pool;
