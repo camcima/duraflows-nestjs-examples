@@ -81,10 +81,10 @@ psql -h localhost -U postgres -d duraflows_examples \
 Real output from running exactly this against the local database:
 
 ```
-Instance:                              Instance (after note_added):
+Instance:                               Instance (after note_added):
 {                                       {
-  "currentState": "pending",             "currentState": "pending",
-  "definitionVersion": null              "definitionVersion": 1
+  "currentState": "pending",              "currentState": "pending",
+  "definitionVersion": null               "definitionVersion": 1
 }                                       }
 
                                         History (oldest first):
@@ -94,10 +94,38 @@ Instance:                              Instance (after note_added):
                                             "fromState": "pending",
                                             "toState": "pending",
                                             "outcome": "success",
-                                            "definitionVersion": 1
+                                            "definitionVersion": 1,
+                                            "createdAt": "2026-08-18T02:06:44.121Z"
                                           }
                                         ]
 ```
+
+## The `createdAt` Field (v5.0.0)
+
+Every `WorkflowHistoryRecord` -- including the ones in the `GET /workflows/:uuid/history` response above -- now also carries `createdAt`, populated by both the pg and kysely adapters when a row is read (it's optional because the same type is also the `append()` input, where the caller never supplies it; the database assigns it via the column default). No app code change was needed for it to appear on the REST response -- the controller returns the core `WorkflowHistoryRecord` objects as-is.
+
+**Caveat: it does not tell you step order within one multi-hop transition.** Postgres's `now()` is transaction-scoped, so every history row written inside one transaction -- an event plus its entire `onEnter` chain -- shares an *identical* `createdAt`. Ties are broken on `uuid DESC`, and `workflow_history.uuid` defaults to a random `gen_random_uuid()`, so same-transaction rows come back in an order unrelated to what actually happened. This app's own `paid → ready_to_ship` onEnter chain proves it -- triggering `payment_success` on a fresh order and reading its history back:
+
+```json
+[
+  { "eventName": "payment_success", "fromState": "payment_processing", "toState": "paid",          "createdAt": "2026-08-18T02:04:20.214Z" },
+  { "eventName": "onEnter",         "fromState": "paid",                "toState": "ready_to_ship", "createdAt": "2026-08-18T02:04:20.214Z" },
+  { "eventName": "process_payment", "fromState": "pending",             "toState": "payment_processing", "createdAt": "2026-08-18T02:04:20.188Z" }
+]
+```
+
+The `payment_success` row and the `onEnter` row it triggered -- two different history rows from the same transaction -- share the exact same `createdAt` (the REST response truncates to millisecond precision; the underlying column is identical down to the microsecond, confirmed below); only `process_payment`, a separate and earlier transaction, has a different timestamp. Cross-checked directly against the table:
+
+```
+   event_name    |     from_state     |      to_state      |          created_at
+-----------------+--------------------+--------------------+-------------------------------
+ payment_success | payment_processing | paid               | 2026-08-17 22:04:20.214457-04
+ onEnter         | paid               | ready_to_ship      | 2026-08-17 22:04:20.214457-04
+ process_payment | pending            | payment_processing | 2026-08-17 22:04:20.188667-04
+(3 rows)
+```
+
+Both tied rows share the identical microsecond-precision `created_at`; the API happened to return `payment_success` before `onEnter` here only because its `uuid` sorted higher, not because it ran first. Use `createdAt` to know roughly *when* a transition happened -- for an audit trail, or to correlate with logs -- never to reconstruct the order of steps within a single multi-hop transition.
 
 ## Live Walkthroughs
 
@@ -137,22 +165,22 @@ This is the walkthrough for the warning at the top of this document. While the a
 
 ```bash
 ./scripts/create-order.sh   # while version 2 is registered
-# → { "uuid": "1ebd8ce5-...", "definitionVersion": 2, "currentState": "pending", ... }
-./scripts/events/add-note.sh 1ebd8ce5-bb5e-48f3-8106-74cbf97fe3bb "created under v2"
+# → { "uuid": "cbf8c9e4-...", "definitionVersion": 2, "currentState": "pending", ... }
+./scripts/events/add-note.sh cbf8c9e4-38af-4a95-a966-526263f9b046 "created under v2"
 ```
 
 The instance and its `note_added` history row were both stamped `definitionVersion: 2`, as expected. Then, **without touching that instance**, the code was reverted to `version: 1` (the original content), rebuilt, and the app restarted — so `ecommerce-order` was now registered as `version: 1` again. The same instance was then driven forward one more step:
 
 ```bash
-./scripts/events/process-payment.sh 1ebd8ce5-bb5e-48f3-8106-74cbf97fe3bb
-./scripts/queries/get-definition-versions.sh 1ebd8ce5-bb5e-48f3-8106-74cbf97fe3bb
+./scripts/events/process-payment.sh cbf8c9e4-38af-4a95-a966-526263f9b046
+./scripts/queries/get-definition-versions.sh cbf8c9e4-38af-4a95-a966-526263f9b046
 ```
 
 Real output:
 
 ```json
 {
-  "uuid": "1ebd8ce5-bb5e-48f3-8106-74cbf97fe3bb",
+  "uuid": "cbf8c9e4-38af-4a95-a966-526263f9b046",
   "currentState": "payment_processing",
   "definitionVersion": 1
 }
@@ -160,10 +188,12 @@ Real output:
 
 ```json
 [
-  { "eventName": "note_added",     "fromState": "pending", "toState": "pending",             "outcome": "success", "definitionVersion": 2 },
-  { "eventName": "process_payment", "fromState": "pending", "toState": "payment_processing", "outcome": "success", "definitionVersion": 1 }
+  { "eventName": "note_added",     "fromState": "pending", "toState": "pending",             "outcome": "success", "definitionVersion": 2, "createdAt": "2026-08-18T02:05:49.325Z" },
+  { "eventName": "process_payment", "fromState": "pending", "toState": "payment_processing", "outcome": "success", "definitionVersion": 1, "createdAt": "2026-08-18T02:06:20.159Z" }
 ]
 ```
+
+`createdAt` here shows two genuinely different timestamps, ~31 seconds apart, spanning the app restart between them — a legitimate use of the field (roughly *when* each transition happened), not an example of the same-transaction tie described in [The `createdAt` Field](#the-createdat-field-v500) above, since `note_added` and `process_payment` are two separate single-hop transitions, not one multi-hop chain.
 
 The instance's `definitionVersion` flipped from `2` to `1` on its very next transition, with no migration, no explicit "downgrade", nothing — it simply followed whatever was currently registered, exactly like it always has. The two history rows now permanently disagree about which version governed them (`2` then `1`), which is correct: each row is the honest provenance record for *that* transition, not a claim about what the instance is pinned to. Nothing in v5.0.0 stopped `process_payment` from running the `version: 1` logic even though the instance was created and first touched under `version: 2` content.
 
